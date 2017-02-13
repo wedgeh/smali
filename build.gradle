@@ -30,6 +30,7 @@
  */
 
 apply plugin: 'idea'
+apply plugin: 'eclipse'
 
 version = '2.1.3'
 
@@ -72,6 +73,7 @@ def maven_release_projects = ['smali', 'baksmali', 'dexlib2', 'util']
 subprojects {
     apply plugin: 'java'
     apply plugin: 'idea'
+    apply plugin: 'eclipse'
 
     if (JavaVersion.current().isJava8Compatible()) {
         allprojects {

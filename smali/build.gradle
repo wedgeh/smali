@@ -82,6 +82,9 @@ dependencies {
     testCompile depends.junit
 
     antlr depends.antlr
+
+    compile group: 'org.apache.logging.log4j', name: 'log4j-api', version: '2.8'
+    compile group: 'org.apache.logging.log4j', name: 'log4j-core', version: '2.8'
 }
 
 processResources.inputs.property('version', version)

@@ -55,6 +55,9 @@ dependencies {
     accessorTestGenerator project('accessorTestGenerator')
 
     dx depends.dx
+
+    compile group: 'org.apache.logging.log4j', name: 'log4j-api', version: '2.8'
+    compile group: 'org.apache.logging.log4j', name: 'log4j-core', version: '2.8'
 }
 
 // You must manually execute this task to regenerate SyntheticAccessorFSM.java, after modifying the ragel file

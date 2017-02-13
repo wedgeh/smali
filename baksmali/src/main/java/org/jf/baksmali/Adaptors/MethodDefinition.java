@@ -28,11 +28,21 @@
 
 package org.jf.baksmali.Adaptors;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jf.baksmali.baksmaliOptions;
 import org.jf.baksmali.Adaptors.Debug.DebugMethodItem;
 import org.jf.baksmali.Adaptors.Format.InstructionMethodItemFactory;
-import org.jf.baksmali.baksmaliOptions;
 import org.jf.dexlib2.AccessFlags;
 import org.jf.dexlib2.Format;
 import org.jf.dexlib2.Opcode;
@@ -41,7 +51,12 @@ import org.jf.dexlib2.analysis.AnalysisException;
 import org.jf.dexlib2.analysis.AnalyzedInstruction;
 import org.jf.dexlib2.analysis.MethodAnalyzer;
 import org.jf.dexlib2.dexbacked.DexBackedDexFile.InvalidItemIndex;
-import org.jf.dexlib2.iface.*;
+import org.jf.dexlib2.iface.Annotation;
+import org.jf.dexlib2.iface.ExceptionHandler;
+import org.jf.dexlib2.iface.Method;
+import org.jf.dexlib2.iface.MethodImplementation;
+import org.jf.dexlib2.iface.MethodParameter;
+import org.jf.dexlib2.iface.TryBlock;
 import org.jf.dexlib2.iface.debug.DebugItem;
 import org.jf.dexlib2.iface.instruction.Instruction;
 import org.jf.dexlib2.iface.instruction.OffsetInstruction;
@@ -59,12 +74,11 @@ import org.jf.util.ExceptionWithContext;
 import org.jf.util.IndentingWriter;
 import org.jf.util.SparseIntArray;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import java.io.IOException;
-import java.util.*;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 
 public class MethodDefinition {
+    private static final Logger log = LogManager.getLogger();
     @Nonnull public final ClassDefinition classDef;
     @Nonnull public final Method method;
     @Nonnull public final MethodImplementation methodImpl;
@@ -80,8 +94,8 @@ public class MethodDefinition {
     @Nonnull private final SparseIntArray sparseSwitchMap;
     @Nonnull private final InstructionOffsetMap instructionOffsetMap;
 
-    public MethodDefinition(@Nonnull ClassDefinition classDef, @Nonnull Method method,
-                            @Nonnull MethodImplementation methodImpl) {
+    public MethodDefinition(@Nonnull final ClassDefinition classDef, @Nonnull final Method method,
+                            @Nonnull final MethodImplementation methodImpl) {
         this.classDef = classDef;
         this.method = method;
         this.methodImpl = methodImpl;
@@ -162,8 +176,8 @@ public class MethodDefinition {
         }
     }
 
-    public static void writeEmptyMethodTo(IndentingWriter writer, Method method,
-                                          baksmaliOptions options) throws IOException {
+    public static void writeEmptyMethodTo(final IndentingWriter writer, final Method method,
+                                          final baksmaliOptions options) throws IOException {
         writer.write(".method ");
         writeAccessFlags(writer, method.getAccessFlags());
         writer.write(method.getName());
@@ -189,7 +203,7 @@ public class MethodDefinition {
         writer.write(".end method\n");
     }
 
-    public void writeTo(IndentingWriter writer) throws IOException {
+    public void writeTo(final IndentingWriter writer) throws IOException {
         int parameterRegisterCount = 0;
         if (!AccessFlags.STATIC.isSet(method.getAccessFlags())) {
             parameterRegisterCount++;
@@ -245,7 +259,7 @@ public class MethodDefinition {
         writer.write(".end method\n");
     }
 
-    public Instruction findSwitchPayload(int targetOffset, Opcode type) {
+    public Instruction findSwitchPayload(final int targetOffset, final Opcode type) {
         int targetIndex;
         try {
             targetIndex = instructionOffsetMap.getInstructionIndexAtCodeOffset(targetOffset);
@@ -274,7 +288,7 @@ public class MethodDefinition {
         }
     }
 
-    public int findPayloadOffset(int targetOffset, Opcode type) {
+    public int findPayloadOffset(final int targetOffset, final Opcode type) {
         int targetIndex;
         try {
             targetIndex = instructionOffsetMap.getInstructionIndexAtCodeOffset(targetOffset);
@@ -303,7 +317,7 @@ public class MethodDefinition {
         }
     }
 
-    private static void writeAccessFlags(IndentingWriter writer, int accessFlags)
+    private static void writeAccessFlags(final IndentingWriter writer, final int accessFlags)
             throws IOException {
         for (AccessFlags accessFlag: AccessFlags.getAccessFlagsForMethod(accessFlags)) {
             writer.write(accessFlag.toString());
@@ -311,9 +325,9 @@ public class MethodDefinition {
         }
     }
 
-    private static void writeParameters(IndentingWriter writer, Method method,
-                                        List<? extends MethodParameter> parameters,
-                                        baksmaliOptions options) throws IOException {
+    private static void writeParameters(final IndentingWriter writer, final Method method,
+                                        final List<? extends MethodParameter> parameters,
+                                        final baksmaliOptions options) throws IOException {
         boolean isStatic = AccessFlags.STATIC.isSet(method.getAccessFlags());
         int registerNumber = isStatic?0:1;
         for (MethodParameter parameter: parameters) {
@@ -355,11 +369,11 @@ public class MethodDefinition {
         return labelCache;
     }
 
-    public int getPackedSwitchBaseAddress(int packedSwitchPayloadCodeOffset) {
+    public int getPackedSwitchBaseAddress(final int packedSwitchPayloadCodeOffset) {
         return packedSwitchMap.get(packedSwitchPayloadCodeOffset, -1);
     }
 
-    public int getSparseSwitchBaseAddress(int sparseSwitchPayloadCodeOffset) {
+    public int getSparseSwitchBaseAddress(final int sparseSwitchPayloadCodeOffset) {
         return sparseSwitchMap.get(sparseSwitchPayloadCodeOffset, -1);
     }
 
@@ -400,7 +414,7 @@ public class MethodDefinition {
         return false;
     }
 
-    private void addInstructionMethodItems(List<MethodItem> methodItems) {
+    private void addInstructionMethodItems(final List<MethodItem> methodItems) {
         int currentCodeAddress = 0;
 
         for (int i=0; i<effectiveInstructions.size(); i++) {
@@ -424,7 +438,7 @@ public class MethodDefinition {
                     }
 
                     @Override
-                    public boolean writeTo(IndentingWriter writer) throws IOException {
+                    public boolean writeTo(final IndentingWriter writer) throws IOException {
                         writer.write("#@");
                         writer.printUnsignedLongAsHex(codeAddress & 0xFFFFFFFFL);
                         return true;
@@ -459,7 +473,7 @@ public class MethodDefinition {
         }
     }
 
-    private void addAnalyzedInstructionMethodItems(List<MethodItem> methodItems) {
+    private void addAnalyzedInstructionMethodItems(final List<MethodItem> methodItems) {
         MethodAnalyzer methodAnalyzer = new MethodAnalyzer(classDef.options.classPath, method,
                 classDef.options.inlineResolver, classDef.options.normalizeVirtualMethods);
 
@@ -469,7 +483,7 @@ public class MethodDefinition {
             methodItems.add(new CommentMethodItem(
                     String.format("AnalysisException: %s", analysisException.getMessage()),
                     analysisException.codeAddress, Integer.MIN_VALUE));
-            analysisException.printStackTrace(System.err);
+            log.error(analysisException.getLocalizedMessage(), analysisException);
         }
 
         List<AnalyzedInstruction> instructions = methodAnalyzer.getAnalyzedInstructions();
@@ -502,7 +516,7 @@ public class MethodDefinition {
                     }
 
                     @Override
-                    public boolean writeTo(IndentingWriter writer) throws IOException {
+                    public boolean writeTo(final IndentingWriter writer) throws IOException {
                         writer.write("#@");
                         writer.printUnsignedLongAsHex(codeAddress & 0xFFFFFFFFL);
                         return true;
@@ -524,7 +538,7 @@ public class MethodDefinition {
         }
     }
 
-    private void addTries(List<MethodItem> methodItems) {
+    private void addTries(final List<MethodItem> methodItems) {
         List<? extends TryBlock<? extends ExceptionHandler>> tryBlocks = methodImpl.getTryBlocks();
         if (tryBlocks.size() == 0) {
             return;
@@ -609,7 +623,7 @@ public class MethodDefinition {
         public LabelCache() {
         }
 
-        public LabelMethodItem internLabel(LabelMethodItem labelMethodItem) {
+        public LabelMethodItem internLabel(final LabelMethodItem labelMethodItem) {
             LabelMethodItem internedLabelMethodItem = labels.get(labelMethodItem);
             if (internedLabelMethodItem != null) {
                 return internedLabelMethodItem;
@@ -627,7 +641,7 @@ public class MethodDefinition {
     public static class InvalidSwitchPayload extends ExceptionWithContext {
         private final int payloadOffset;
 
-        public InvalidSwitchPayload(int payloadOffset) {
+        public InvalidSwitchPayload(final int payloadOffset) {
             super("No switch payload at offset: %d", payloadOffset);
             this.payloadOffset = payloadOffset;
         }

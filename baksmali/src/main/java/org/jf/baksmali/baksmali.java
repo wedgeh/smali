@@ -28,10 +28,26 @@
 
 package org.jf.baksmali;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Ordering;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
+import java.util.List;
+import java.util.Map.Entry;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.parsers.SAXParser;
+import javax.xml.parsers.SAXParserFactory;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jf.baksmali.Adaptors.ClassDefinition;
 import org.jf.dexlib2.analysis.ClassPath;
 import org.jf.dexlib2.analysis.CustomInlineMethodResolver;
@@ -44,17 +60,15 @@ import org.xml.sax.Attributes;
 import org.xml.sax.SAXException;
 import org.xml.sax.helpers.DefaultHandler;
 
-import javax.xml.parsers.ParserConfigurationException;
-import javax.xml.parsers.SAXParser;
-import javax.xml.parsers.SAXParserFactory;
-import java.io.*;
-import java.util.List;
-import java.util.Map.Entry;
-import java.util.concurrent.*;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Ordering;
 
 public class baksmali {
+    private static final Logger log = LogManager.getLogger();
 
-    public static boolean disassembleDexFile(DexFile dexFile, final baksmaliOptions options) {
+    public static boolean disassembleDexFile(final DexFile dexFile, final baksmaliOptions options) {
         if (options.registerInfo != 0 || options.deodex || options.normalizeVirtualMethods) {
             try {
                 Iterable<String> extraClassPathEntries;
@@ -73,8 +87,7 @@ public class baksmali {
                             options.customInlineDefinitions);
                 }
             } catch (Exception ex) {
-                System.err.println("\n\nError occurred while loading boot class path files. Aborting.");
-                ex.printStackTrace(System.err);
+                log.error("Error occurred while loading boot class path files. Aborting.", ex);
                 return false;
             }
         }
@@ -82,13 +95,14 @@ public class baksmali {
         if (options.resourceIdFileEntries != null) {
             class PublicHandler extends DefaultHandler {
                 String prefix = null;
-                public PublicHandler(String prefix) {
+                public PublicHandler(final String prefix) {
                     super();
                     this.prefix = prefix;
                 }
 
-                public void startElement(String uri, String localName,
-                        String qName, Attributes attr) throws SAXException {
+                @Override
+                public void startElement(final String uri, final String localName,
+                        final String qName, final Attributes attr) throws SAXException {
                     if (qName.equals("public")) {
                         String type = attr.getValue("type");
                         String name = attr.getValue("name").replace('.', '_');
@@ -123,7 +137,7 @@ public class baksmali {
         File outputDirectoryFile = new File(options.outputDirectory);
         if (!outputDirectoryFile.exists()) {
             if (!outputDirectoryFile.mkdirs()) {
-                System.err.println("Can't create the output directory " + options.outputDirectory);
+                log.error("Can't create the output directory " + options.outputDirectory);
                 return false;
             }
         }
@@ -173,8 +187,8 @@ public class baksmali {
         return !errorOccurred;
     }
 
-    private static boolean disassembleClass(ClassDef classDef, ClassFileNameHandler fileNameHandler,
-                                            baksmaliOptions options) {
+    private static boolean disassembleClass(final ClassDef classDef, final ClassFileNameHandler fileNameHandler,
+                                            final baksmaliOptions options) {
         /**
          * The path for the disassembly file is based on the package name
          * The class descriptor will look something like:
@@ -187,7 +201,7 @@ public class baksmali {
         //validate that the descriptor is formatted like we expect
         if (classDescriptor.charAt(0) != 'L' ||
                 classDescriptor.charAt(classDescriptor.length()-1) != ';') {
-            System.err.println("Unrecognized class descriptor - " + classDescriptor + " - skipping class");
+            log.debug("Unrecognized class descriptor - " + classDescriptor + " - skipping class");
             return false;
         }
 
@@ -205,7 +219,7 @@ public class baksmali {
                 if (!smaliParent.mkdirs()) {
                     // check again, it's likely it was created in a different thread
                     if (!smaliParent.exists()) {
-                        System.err.println("Unable to create directory " + smaliParent.toString() + " - skipping class");
+                        log.error("Unable to create directory " + smaliParent.toString() + " - skipping class");
                         return false;
                     }
                 }
@@ -213,7 +227,7 @@ public class baksmali {
 
             if (!smaliFile.exists()){
                 if (!smaliFile.createNewFile()) {
-                    System.err.println("Unable to create file " + smaliFile.toString() + " - skipping class");
+                    log.error("Unable to create file " + smaliFile.toString() + " - skipping class");
                     return false;
                 }
             }
